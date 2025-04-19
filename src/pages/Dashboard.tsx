@@ -230,11 +230,26 @@ const AddPropertyDialog: React.FC<AddPropertyDialogProps> = ({ open, onClose, on
     if (!validateForm()) return;
 
     if (propertyToEdit) {
-      // For editing, preserve existing rooms and only update name and color
+      // For editing, create new rooms based on the updated configuration
+      const updatedRooms: Room[] = formData.rooms.flatMap(config =>
+        Array(config.count).fill(null).map((_, index) => {
+          // Try to find existing room of the same type and index
+          const existingRoom = propertyToEdit.rooms.find(
+            (room, i) => room.type === config.type && i === index
+          );
+          
+          // If found, preserve its data, otherwise create new room
+          return existingRoom || {
+            type: config.type,
+            isOccupied: false,
+          };
+        })
+      );
+
       const updatedProperty: Omit<Property, 'id'> = {
         name: formData.name.toUpperCase(),
         backgroundColor: formData.backgroundColor,
-        rooms: propertyToEdit.rooms, // Preserve existing rooms
+        rooms: updatedRooms,
       };
       onAdd(updatedProperty);
     } else {
@@ -550,15 +565,42 @@ const Dashboard: React.FC = () => {
   const [selectedProperty, setSelectedProperty] = useState<Property | undefined>();
   const navigate = useNavigate();
 
-  // Calculate summary metrics
-  const totalProperties = properties.length;
-  const totalRooms = properties.reduce((sum, property) => sum + property.rooms.length, 0);
-  const occupiedRooms = properties.reduce(
-    (sum, property) => sum + property.rooms.filter(room => room.isOccupied).length,
-    0
-  );
-  const occupancyRate = totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
-  const activeLeads = leads.filter(lead => lead.tags.includes('New') || lead.tags.includes('Follow Up')).length;
+  // Calculate occupancy metrics
+  const calculateOccupancyMetrics = () => {
+    const now = new Date();
+    let longestOccupancy = 0;
+    let longestVacancy = 0;
+    let totalOccupiedRooms = 0;
+    let totalRooms = 0;
+
+    properties.forEach(property => {
+      property.rooms.forEach(room => {
+        totalRooms++;
+        if (room.isOccupied) {
+          totalOccupiedRooms++;
+          if (room.leaseStart) {
+            const occupancyDays = Math.ceil((now.getTime() - new Date(room.leaseStart).getTime()) / (1000 * 60 * 60 * 24));
+            longestOccupancy = Math.max(longestOccupancy, occupancyDays);
+          }
+        } else {
+          // Assuming a room is vacant since the last tenant's lease end or for 30 days if no previous tenant
+          const lastLeaseEnd = room.leaseEnd ? new Date(room.leaseEnd) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          const vacancyDays = Math.ceil((now.getTime() - lastLeaseEnd.getTime()) / (1000 * 60 * 60 * 24));
+          longestVacancy = Math.max(longestVacancy, vacancyDays);
+        }
+      });
+    });
+
+    const occupancyRate = totalRooms > 0 ? (totalOccupiedRooms / totalRooms) * 100 : 0;
+
+    return {
+      longestOccupancy,
+      longestVacancy,
+      occupancyRate
+    };
+  };
+
+  const metrics = calculateOccupancyMetrics();
 
   // Load leads from localStorage on component mount
   useEffect(() => {
@@ -797,43 +839,37 @@ const Dashboard: React.FC = () => {
     <Box>
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Total Properties
+                Longest Occupancy
               </Typography>
-              <Typography variant="h4">{totalProperties}</Typography>
+              <Typography variant="h4">
+                {metrics.longestOccupancy} Days
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Total Rooms
+                Longest Vacancy
               </Typography>
-              <Typography variant="h4">{totalRooms}</Typography>
+              <Typography variant="h4">
+                {metrics.longestVacancy} Days
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
                 Occupancy Rate
               </Typography>
-              <Typography variant="h4">{occupancyRate.toFixed(1)}%</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Active Leads
-              </Typography>
-              <Typography variant="h4">{activeLeads}</Typography>
+              <Typography variant="h4">{metrics.occupancyRate.toFixed(1)}%</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -975,45 +1011,6 @@ const Dashboard: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-
-      {/* Upcoming Tasks */}
-      <Card>
-        <CardContent>
-          <Typography variant="h5" sx={{ mb: 2 }}>
-            Upcoming Tasks
-          </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Task</TableCell>
-                  <TableCell>Property</TableCell>
-                  <TableCell>Due Date</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Monthly Inspection</TableCell>
-                  <TableCell>LUCIDA</TableCell>
-                  <TableCell>2024-03-15</TableCell>
-                  <TableCell>
-                    <Chip label="Pending" color="warning" size="small" />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Lease Renewal</TableCell>
-                  <TableCell>KYLE</TableCell>
-                  <TableCell>2024-03-20</TableCell>
-                  <TableCell>
-                    <Chip label="Upcoming" color="info" size="small" />
-                  </TableCell>
-                </TableRow>
               </TableBody>
             </Table>
           </TableContainer>
