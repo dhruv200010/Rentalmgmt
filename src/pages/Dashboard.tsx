@@ -59,7 +59,7 @@ interface Lead {
   location: 'Austin' | 'Kyle';
   contactNo: string;
   source: 'Roomies' | 'Sulekha' | 'Telegram' | 'Zillow' | 'Roomster' | 'Whatsapp' | 'Others';
-  tags: ('New' | 'Follow Up' | 'Lease Sent' | 'Landed' | 'No')[];
+  category: 'New' | 'Follow Up' | 'Lease Sent' | 'Landed' | 'No';
   reminderDateTime: Date | null;
 }
 
@@ -559,7 +559,7 @@ const Dashboard: React.FC = () => {
     location: 'Austin',
     contactNo: '',
     source: 'Roomies',
-    tags: ['New'],
+    category: 'New',
     reminderDateTime: null,
   });
   const [selectedProperty, setSelectedProperty] = useState<Property | undefined>();
@@ -726,7 +726,7 @@ const Dashboard: React.FC = () => {
         location: 'Austin',
         contactNo: '',
         source: 'Roomies',
-        tags: ['New'],
+        category: 'New',
         reminderDateTime: null,
       });
     }
@@ -741,7 +741,7 @@ const Dashboard: React.FC = () => {
       location: 'Austin',
       contactNo: '',
       source: 'Roomies',
-      tags: ['New'],
+      category: 'New',
       reminderDateTime: null,
     });
   };
@@ -751,17 +751,7 @@ const Dashboard: React.FC = () => {
     setLeadFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleLeadSelectChange = (e: any) => {
-    const { name, value } = e.target;
-    setLeadFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleTagsChange = (event: any) => {
-    const { value } = event.target;
-    setLeadFormData(prev => ({ ...prev, tags: value }));
-  };
-
-  const handleReminderChange = (date: Date | null) => {
+  const handleDateChange = (date: Date | null) => {
     setLeadFormData(prev => ({ ...prev, reminderDateTime: date }));
   };
 
@@ -780,7 +770,7 @@ const Dashboard: React.FC = () => {
         location: leadFormData.location || 'Austin',
         contactNo: leadFormData.contactNo || '',
         source: leadFormData.source || 'Roomies',
-        tags: leadFormData.tags || ['New'],
+        category: leadFormData.category || 'New',
         reminderDateTime: leadFormData.reminderDateTime || null,
       };
       setLeads(prev => [...prev, newLead]);
@@ -974,7 +964,7 @@ const Dashboard: React.FC = () => {
                   <TableCell>Name</TableCell>
                   <TableCell>Location</TableCell>
                   <TableCell>Source</TableCell>
-                  <TableCell>Tags</TableCell>
+                  <TableCell>Category</TableCell>
                   <TableCell>Reminder</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -986,11 +976,7 @@ const Dashboard: React.FC = () => {
                     <TableCell>{lead.location}</TableCell>
                     <TableCell>{lead.source}</TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={1}>
-                        {lead.tags.map((tag, index) => (
-                          <Chip key={index} label={tag} size="small" />
-                        ))}
-                      </Stack>
+                      <Chip label={lead.category} size="small" />
                     </TableCell>
                     <TableCell>
                       {lead.reminderDateTime && (
@@ -1059,7 +1045,7 @@ const Dashboard: React.FC = () => {
                 <Select
                   name="location"
                   value={leadFormData.location}
-                  onChange={handleLeadSelectChange}
+                  onChange={handleLeadInputChange}
                   label="Location"
                 >
                   <MenuItem value="Austin">Austin</MenuItem>
@@ -1082,7 +1068,7 @@ const Dashboard: React.FC = () => {
                 <Select
                   name="source"
                   value={leadFormData.source}
-                  onChange={handleLeadSelectChange}
+                  onChange={handleLeadInputChange}
                   label="Source"
                 >
                   <MenuItem value="Roomies">Roomies</MenuItem>
@@ -1097,19 +1083,12 @@ const Dashboard: React.FC = () => {
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth>
-                <InputLabel>Tags</InputLabel>
+                <InputLabel>Category</InputLabel>
                 <Select
-                  multiple
-                  value={leadFormData.tags}
-                  onChange={handleTagsChange}
-                  label="Tags"
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {(selected as string[]).map((value) => (
-                        <Chip key={value} label={value} size="small" />
-                      ))}
-                    </Box>
-                  )}
+                  name="category"
+                  value={leadFormData.category}
+                  onChange={handleLeadInputChange}
+                  label="Category"
                 >
                   <MenuItem value="New">New</MenuItem>
                   <MenuItem value="Follow Up">Follow Up</MenuItem>
@@ -1124,7 +1103,7 @@ const Dashboard: React.FC = () => {
                 <DateTimePicker
                   label="Reminder Date & Time"
                   value={leadFormData.reminderDateTime}
-                  onChange={handleReminderChange}
+                  onChange={handleDateChange}
                   sx={{ width: '100%' }}
                 />
               </LocalizationProvider>
