@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -13,22 +13,24 @@ import {
   TextField,
   IconButton,
   Tooltip,
-  FormControl,
-  InputLabel,
+  Grid,
   Select,
   MenuItem,
-  SelectChangeEvent,
-  Grid,
+  FormControl,
+  InputLabel,
+  Chip,
+  Stack,
 } from '@mui/material';
 import { 
   Add as AddIcon, 
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { DatePicker, DateTimePicker } from '@mui/x-date-pickers';
 
 interface Room {
   type: 'P' | 'S' | 'G';  // P for Premium, S for Standard, G for Guest
@@ -43,6 +45,16 @@ interface Property {
   name: string;
   rooms: Room[];
   backgroundColor: string;
+}
+
+interface Lead {
+  id: number;
+  name: string;
+  location: 'Austin' | 'Kyle';
+  contactNo: string;
+  source: 'Roomies' | 'Sulekha' | 'Telegram' | 'Zillow' | 'Roomster' | 'Whatsapp' | 'Others';
+  tags: ('New' | 'Follow Up' | 'Lease Sent' | 'Landed' | 'No')[];
+  reminderDateTime: Date | null;
 }
 
 const initialProperties: Property[] = [
@@ -368,7 +380,45 @@ const Dashboard: React.FC = () => {
     room: Room;
     propertyName: string;
   } | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [openLeadDialog, setOpenLeadDialog] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadFormData, setLeadFormData] = useState<Partial<Lead>>({
+    name: '',
+    location: 'Austin',
+    contactNo: '',
+    source: 'Roomies',
+    tags: ['New'],
+    reminderDateTime: null,
+  });
   const navigate = useNavigate();
+
+  // Load leads from localStorage on component mount
+  useEffect(() => {
+    const savedLeads = localStorage.getItem('leads');
+    if (savedLeads) {
+      try {
+        const parsedLeads = JSON.parse(savedLeads);
+        // Convert string dates back to Date objects
+        const leadsWithDates = parsedLeads.map((lead: any) => ({
+          ...lead,
+          reminderDateTime: lead.reminderDateTime ? new Date(lead.reminderDateTime) : null
+        }));
+        setLeads(leadsWithDates);
+      } catch (error) {
+        console.error('Error loading leads from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Save leads to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('leads', JSON.stringify(leads));
+    } catch (error) {
+      console.error('Error saving leads to localStorage:', error);
+    }
+  }, [leads]);
 
   const handleAddProperty = (newProperty: Omit<Property, 'id'>) => {
     const id = (properties.length + 1).toString();
@@ -414,12 +464,104 @@ const Dashboard: React.FC = () => {
   };
 
   const handlePropertyEdit = (propertyId: string) => {
-    // Navigate to property edit page
     navigate(`/properties/${propertyId}`);
   };
 
+  const handleOpenLeadDialog = (lead?: Lead) => {
+    if (lead) {
+      setSelectedLead(lead);
+      setLeadFormData(lead);
+    } else {
+      setSelectedLead(null);
+      setLeadFormData({
+        name: '',
+        location: 'Austin',
+        contactNo: '',
+        source: 'Roomies',
+        tags: ['New'],
+        reminderDateTime: null,
+      });
+    }
+    setOpenLeadDialog(true);
+  };
+
+  const handleCloseLeadDialog = () => {
+    setOpenLeadDialog(false);
+    setSelectedLead(null);
+  };
+
+  const handleLeadInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setLeadFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleLeadSelectChange = (e: any) => {
+    const { name, value } = e.target;
+    setLeadFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleTagsChange = (event: any) => {
+    const { value } = event.target;
+    setLeadFormData(prev => ({ ...prev, tags: value }));
+  };
+
+  const handleReminderChange = (date: Date | null) => {
+    setLeadFormData(prev => ({ ...prev, reminderDateTime: date }));
+  };
+
+  const handleLeadSubmit = () => {
+    if (selectedLead) {
+      setLeads(prev =>
+        prev.map(lead =>
+          lead.id === selectedLead.id ? { ...lead, ...leadFormData } : lead
+        )
+      );
+    } else {
+      const newLead: Lead = {
+        id: Date.now(),
+        name: leadFormData.name || '',
+        location: leadFormData.location || 'Austin',
+        contactNo: leadFormData.contactNo || '',
+        source: leadFormData.source || 'Roomies',
+        tags: leadFormData.tags || ['New'],
+        reminderDateTime: leadFormData.reminderDateTime || null,
+      };
+      setLeads(prev => [...prev, newLead]);
+    }
+    handleCloseLeadDialog();
+  };
+
+  const handleDeleteLead = (id: number) => {
+    setLeads(prev => prev.filter(lead => lead.id !== id));
+  };
+
+  // Check for reminders
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      leads.forEach(lead => {
+        if (lead.reminderDateTime && lead.reminderDateTime <= now) {
+          // Show notification
+          if (Notification.permission === 'granted') {
+            new Notification('Lead Reminder', {
+              body: `Follow up with ${lead.name} (${lead.contactNo})`,
+            });
+          }
+        }
+      });
+    };
+
+    // Request notification permission
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+
+    const interval = setInterval(checkReminders, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [leads]);
+
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center' }}>
         <Box>
           <Typography variant="h4">Dashboard</Typography>
@@ -496,6 +638,59 @@ const Dashboard: React.FC = () => {
         ))}
       </Box>
 
+      <Box sx={{ mt: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Leads</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenLeadDialog()}
+          >
+            Add Lead
+          </Button>
+        </Box>
+
+        <Grid container spacing={2}>
+          {leads.map((lead) => (
+            <Grid item xs={12} sm={6} md={4} key={lead.id}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Typography variant="h6">{lead.name}</Typography>
+                      <Typography color="text.secondary">{lead.contactNo}</Typography>
+                      <Typography color="text.secondary">{lead.location}</Typography>
+                      <Typography color="text.secondary">Source: {lead.source}</Typography>
+                      {lead.reminderDateTime && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                          <NotificationsIcon fontSize="small" sx={{ mr: 1 }} />
+                          <Typography variant="body2">
+                            {new Date(lead.reminderDateTime).toLocaleString()}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                    <Box>
+                      <IconButton onClick={() => handleOpenLeadDialog(lead)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton onClick={() => handleDeleteLead(lead.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                    {lead.tags.map((tag) => (
+                      <Chip key={tag} label={tag} size="small" />
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
       <AddPropertyDialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
@@ -514,6 +709,93 @@ const Dashboard: React.FC = () => {
           onSave={handleRoomUpdate}
         />
       )}
+
+      <Dialog open={openLeadDialog} onClose={handleCloseLeadDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>{selectedLead ? 'Edit Lead' : 'Add Lead'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              label="Name"
+              name="name"
+              value={leadFormData.name}
+              onChange={handleLeadInputChange}
+              fullWidth
+            />
+            <FormControl fullWidth>
+              <InputLabel>Location</InputLabel>
+              <Select
+                name="location"
+                value={leadFormData.location}
+                onChange={handleLeadSelectChange}
+                label="Location"
+              >
+                <MenuItem value="Austin">Austin</MenuItem>
+                <MenuItem value="Kyle">Kyle</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Contact Number"
+              name="contactNo"
+              value={leadFormData.contactNo}
+              onChange={handleLeadInputChange}
+              fullWidth
+            />
+            <FormControl fullWidth>
+              <InputLabel>Source</InputLabel>
+              <Select
+                name="source"
+                value={leadFormData.source}
+                onChange={handleLeadSelectChange}
+                label="Source"
+              >
+                <MenuItem value="Roomies">Roomies</MenuItem>
+                <MenuItem value="Sulekha">Sulekha</MenuItem>
+                <MenuItem value="Telegram">Telegram</MenuItem>
+                <MenuItem value="Zillow">Zillow</MenuItem>
+                <MenuItem value="Roomster">Roomster</MenuItem>
+                <MenuItem value="Whatsapp">Whatsapp</MenuItem>
+                <MenuItem value="Others">Others</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Tags</InputLabel>
+              <Select
+                multiple
+                value={leadFormData.tags}
+                onChange={handleTagsChange}
+                label="Tags"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => (
+                      <Chip key={value} label={value} size="small" />
+                    ))}
+                  </Box>
+                )}
+              >
+                <MenuItem value="New">New</MenuItem>
+                <MenuItem value="Follow Up">Follow Up</MenuItem>
+                <MenuItem value="Lease Sent">Lease Sent</MenuItem>
+                <MenuItem value="Landed">Landed</MenuItem>
+                <MenuItem value="No">No</MenuItem>
+              </Select>
+            </FormControl>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DateTimePicker
+                label="Reminder Date & Time"
+                value={leadFormData.reminderDateTime}
+                onChange={handleReminderChange}
+                sx={{ width: '100%' }}
+              />
+            </LocalizationProvider>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseLeadDialog}>Cancel</Button>
+          <Button onClick={handleLeadSubmit} variant="contained" color="primary">
+            {selectedLead ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

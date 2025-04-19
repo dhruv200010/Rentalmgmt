@@ -8,9 +8,6 @@ import Layout from './components/Layout';
 
 // Pages
 import Dashboard from './pages/Dashboard';
-import Properties from './pages/Properties';
-import Tenants from './pages/Tenants';
-import Payments from './pages/Payments';
 import Leads from './pages/Leads';
 
 // Create theme
@@ -34,9 +31,6 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/properties" element={<Properties />} />
-            <Route path="/tenants" element={<Tenants />} />
-            <Route path="/payments" element={<Payments />} />
             <Route path="/leads" element={<Leads />} />
           </Routes>
         </Layout>

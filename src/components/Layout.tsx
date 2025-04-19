@@ -16,10 +16,6 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  Home as HomeIcon,
-  People as PeopleIcon,
-  Payment as PaymentIcon,
-  ContactPhone as ContactPhoneIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -89,10 +85,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-    { text: 'Properties', icon: <HomeIcon />, path: '/properties' },
-    { text: 'Tenants', icon: <PeopleIcon />, path: '/tenants' },
-    { text: 'Payments', icon: <PaymentIcon />, path: '/payments' },
-    { text: 'Leads', icon: <ContactPhoneIcon />, path: '/leads' },
   ];
 
   return (
